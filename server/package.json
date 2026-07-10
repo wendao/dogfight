@@ -1,0 +1,17 @@
+{
+  "name": "fly-plane-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "打飞机天梯服务端 - 局域网联机",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "uuid": "^11.1.0",
+    "ws": "^8.18.1"
+  }
+}

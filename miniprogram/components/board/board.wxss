@@ -1,0 +1,85 @@
+.board {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  width: 100%;
+  max-width: 680rpx;
+  aspect-ratio: 1;
+  background: #fff;
+  border: 3rpx solid #22395c;
+  border-radius: 6rpx;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.cell {
+  position: relative;
+  border: 1rpx solid #c6d4e6;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.board.locked .cell {
+  /* no hover */
+}
+
+.cell.sky {
+  background: #5fa9dd;
+}
+
+.cell.sil {
+  background: #dde4ee;
+}
+
+.cell.silhead {
+  background: #c4d0e3;
+}
+
+.cell.silhead::after {
+  content: '';
+  position: absolute;
+  left: 24%;
+  right: 24%;
+  top: 18%;
+  bottom: 18%;
+  background: rgba(34, 57, 92, 0.45);
+  clip-path: polygon(50% 4%, 96% 90%, 4% 90%);
+}
+
+.cell.hitb::after {
+  content: '';
+  position: absolute;
+  inset: 22%;
+  border-radius: 50%;
+  background: #3d9463;
+}
+
+.cell.hith::after {
+  content: '';
+  position: absolute;
+  inset: 14%;
+  clip-path: polygon(50% 4%, 96% 90%, 4% 90%);
+  background: #d23b34;
+}
+
+.cell.last {
+  box-shadow: inset 0 0 0 4rpx #c0392b;
+}
+
+.cell.pvok {
+  box-shadow: inset 0 0 0 100px rgba(61, 148, 99, 0.38);
+}
+
+.cell.pvbad {
+  box-shadow: inset 0 0 0 100px rgba(210, 59, 52, 0.38);
+}
+
+.cell.pop.hitb::after,
+.cell.pop.hith::after {
+  animation: stamp 0.22s ease-out;
+}
+
+@keyframes stamp {
+  0% { transform: scale(1.7); opacity: 0; }
+  70% { transform: scale(0.92); }
+  100% { transform: scale(1); opacity: 1; }
+}

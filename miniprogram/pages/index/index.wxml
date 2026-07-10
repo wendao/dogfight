@@ -1,0 +1,29 @@
+<view class="page">
+  <view class="head">
+    <text class="plane">✈️</text>
+    <text class="title">打飞机</text>
+    <text class="sub">方格纸上的空战</text>
+  </view>
+
+  <view class="card center">
+    <view class="sec">飞行员登记</view>
+    <input
+      class="nick"
+      maxlength="12"
+      placeholder="写下你的代号"
+      value="{{name}}"
+      bindinput="onName"
+    />
+    <view class="homebtns">
+      <button class="btn" bindtap="goSingle">单人练习</button>
+      <button class="btn red" bindtap="goLadder">进入天梯</button>
+    </view>
+    <view class="note" style="margin-top: 24rpx; text-align: left">
+      10×10 方格里藏着 3 架飞机。绿圆机身、红三角机头，集齐 3 个机头获胜。
+      天梯：排队观战，前两名对战，胜者守擂，败者垫底。
+    </view>
+    <view class="note" style="margin-top: 16rpx; text-align: left">
+      服务器：{{host}}:{{port}}（真机请改 utils/config.js 为电脑局域网 IP）
+    </view>
+  </view>
+</view>

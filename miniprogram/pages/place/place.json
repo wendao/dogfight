@@ -1,0 +1,6 @@
+{
+  "usingComponents": {
+    "board": "/components/board/board"
+  },
+  "navigationBarTitleText": "布阵"
+}

@@ -1,0 +1,57 @@
+.page {
+  padding: 20rpx 0 80rpx;
+}
+
+.top {
+  padding: 0 28rpx 16rpx;
+}
+
+.champ {
+  max-width: 680rpx;
+  margin: 0 auto;
+}
+
+.champ-line {
+  font-size: 34rpx;
+  letter-spacing: 2rpx;
+}
+
+.streak {
+  font-size: 24rpx;
+  color: #c0392b;
+  border: 1px solid #c0392b;
+  border-radius: 40rpx;
+  padding: 2rpx 16rpx;
+  margin-left: 12rpx;
+}
+
+.status {
+  text-align: center;
+  color: #5c6f8c;
+  font-size: 26rpx;
+  min-height: 40rpx;
+  padding: 16rpx 24rpx;
+}
+
+.spec {
+  display: flex;
+  flex-direction: column;
+  gap: 28rpx;
+  padding: 0 28rpx;
+}
+
+.spec-col .who {
+  text-align: center;
+  margin-bottom: 8rpx;
+  font-size: 28rpx;
+}
+
+.qitem {
+  line-height: 1.9;
+  font-size: 28rpx;
+}
+
+.qitem.me {
+  color: #c0392b;
+  font-weight: 700;
+}

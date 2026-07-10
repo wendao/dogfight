@@ -1,0 +1,55 @@
+.page {
+  padding: 40rpx 0 80rpx;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 16rpx;
+  flex-wrap: wrap;
+  padding: 0 32rpx 32rpx;
+}
+
+.plane {
+  font-size: 40rpx;
+}
+
+.title {
+  font-size: 56rpx;
+  letter-spacing: 10rpx;
+  border-bottom: 4rpx double #c0392b;
+  padding-bottom: 4rpx;
+  font-weight: 600;
+}
+
+.sub {
+  color: #8d8672;
+  font-size: 24rpx;
+}
+
+.nick {
+  border: none;
+  border-bottom: 3rpx solid #22395c;
+  background: transparent;
+  font-size: 34rpx;
+  padding: 12rpx 8rpx;
+  width: 360rpx;
+  text-align: center;
+  margin: 24rpx auto;
+  letter-spacing: 4rpx;
+  color: #22395c;
+}
+
+.homebtns {
+  display: flex;
+  gap: 24rpx;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 28rpx;
+}
+
+.homebtns .btn {
+  font-size: 30rpx;
+  padding: 20rpx 48rpx;
+  letter-spacing: 4rpx;
+}

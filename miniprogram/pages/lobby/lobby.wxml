@@ -1,0 +1,41 @@
+<view class="page">
+  <view class="top">
+    <button class="btn ghost sm" bindtap="exit">退出天梯</button>
+  </view>
+
+  <view class="card center champ">
+    <block wx:if="{{hasChamp}}">
+      <view class="champ-line">🏆 擂主 · {{championName}}
+        <text class="streak" wx:if="{{streak > 1}}">{{streak}} 连胜</text>
+      </view>
+      <view class="red-ink" wx:if="{{isChamp}}" style="margin-top: 8rpx">你正在守擂，等待挑战者…</view>
+    </block>
+    <view class="note" wx:else>🏆 擂台虚位以待</view>
+  </view>
+
+  <view class="status">{{status}}</view>
+
+  <view class="spec" wx:if="{{hasMatch && phase !== 'place'}}">
+    <view class="spec-col">
+      <view class="who">{{p0Name}} · 被击落 {{killed0}}/3</view>
+      <board cells="{{cells0}}" locked="{{true}}" />
+    </view>
+    <view class="spec-col">
+      <view class="who">{{p1Name}} · 被击落 {{killed1}}/3</view>
+      <board cells="{{cells1}}" locked="{{true}}" />
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 24rpx">
+    <view class="sec">挑战队列</view>
+    <view wx:if="{{queue.length}}">
+      <view class="qitem {{item.me ? 'me' : ''}}" wx:for="{{queue}}" wx:key="id">
+        {{index + 1}}. {{item.name}}<text wx:if="{{item.me}}">（你）</text>
+      </view>
+    </view>
+    <view class="note" wx:else>队列空空如也</view>
+    <view class="note" style="margin-top: 16rpx">
+      同一局域网多人进入即可对战。前两名（或擂主+队首）开局，其余观战；胜者守擂，败者垫底。
+    </view>
+  </view>
+</view>

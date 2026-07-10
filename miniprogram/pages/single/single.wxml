@@ -1,0 +1,35 @@
+<view class="page">
+  <view class="hud">
+    <text>步数 <text class="big">{{steps}}</text></text>
+    <text>击落 <text class="big">{{got}}</text>/3</text>
+  </view>
+
+  <view class="board-wrap">
+    <board cells="{{cells}}" lastShot="{{lastShot}}" popIdx="{{popIdx}}" bind:celltap="onCell" />
+  </view>
+
+  <view class="legend">
+    <text><text class="lg"></text>云</text>
+    <text><text class="lg sky"></text>天空</text>
+    <text><text class="lg hitb"></text>机身</text>
+    <text><text class="lg hith"></text>机头</text>
+  </view>
+
+  <view class="hud" style="margin-top: 24rpx">
+    <button class="btn ghost sm" bindtap="home">返回首页</button>
+    <button class="btn sm" bindtap="again">重新开始</button>
+  </view>
+
+  <view class="overlay" wx:if="{{showWin}}">
+    <view class="card center ov">
+      <view class="win-title">全部击落！</view>
+      <view>本局用了 <text class="big">{{steps}}</text> 步</view>
+      <view class="red-ink" wx:if="{{isNew}}" style="margin-top: 8rpx">刷新个人纪录！</view>
+      <view class="note" wx:else style="margin-top: 8rpx">个人纪录 {{best}} 步</view>
+      <view class="hud" style="margin-top: 24rpx">
+        <button class="btn" bindtap="again">再来一局</button>
+        <button class="btn ghost" bindtap="home">返回首页</button>
+      </view>
+    </view>
+  </view>
+</view>

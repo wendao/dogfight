@@ -1,0 +1,94 @@
+.page {
+  padding: 12rpx 0 60rpx;
+}
+
+.banner {
+  text-align: center;
+  font-size: 32rpx;
+  letter-spacing: 2rpx;
+  margin: 8rpx 0 12rpx;
+  color: #c0392b;
+}
+
+.boards {
+  display: flex;
+  flex-direction: column;
+  gap: 28rpx;
+  padding: 12rpx 28rpx;
+}
+
+.who {
+  text-align: center;
+  margin-bottom: 8rpx;
+  font-size: 28rpx;
+}
+
+.who.active {
+  border-bottom: 4rpx solid #c0392b;
+  display: inline-block;
+  width: 100%;
+  padding-bottom: 4rpx;
+}
+
+.urgent {
+  color: #c0392b !important;
+}
+
+.legend {
+  display: flex;
+  gap: 20rpx;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-size: 24rpx;
+  color: #5c6f8c;
+  margin-top: 16rpx;
+}
+
+.lg {
+  display: inline-block;
+  width: 28rpx;
+  height: 28rpx;
+  border: 1rpx solid #c6d4e6;
+  background: #fff;
+  margin-right: 6rpx;
+  vertical-align: middle;
+  position: relative;
+}
+
+.lg.sky { background: #5fa9dd; }
+.lg.hitb::after {
+  content: '';
+  position: absolute;
+  inset: 20%;
+  border-radius: 50%;
+  background: #3d9463;
+}
+.lg.hith::after {
+  content: '';
+  position: absolute;
+  inset: 12%;
+  clip-path: polygon(50% 4%, 96% 90%, 4% 90%);
+  background: #d23b34;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(60, 52, 32, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 32rpx;
+}
+
+.ov { max-width: 600rpx; width: 100%; }
+
+.otitle {
+  font-size: 48rpx;
+  letter-spacing: 6rpx;
+  margin-bottom: 12rpx;
+  font-weight: 600;
+}
+.otitle.win { color: #c0392b; }
+.otitle.lose { color: #5c6f8c; }

@@ -1,0 +1,18 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/single/single",
+    "pages/lobby/lobby",
+    "pages/place/place",
+    "pages/battle/battle"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#f6f2e7",
+    "navigationBarTitleText": "打飞机",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f6f2e7",
+    "backgroundTextStyle": "dark"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

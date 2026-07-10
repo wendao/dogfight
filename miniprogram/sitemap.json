@@ -1,0 +1,4 @@
+{
+  "desc": "打飞机小程序",
+  "rules": [{ "action": "allow", "page": "*" }]
+}

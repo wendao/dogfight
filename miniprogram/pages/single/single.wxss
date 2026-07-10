@@ -1,0 +1,80 @@
+.page {
+  padding: 24rpx 0 80rpx;
+}
+
+.board-wrap {
+  padding: 24rpx 36rpx;
+}
+
+.legend {
+  display: flex;
+  gap: 20rpx;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-size: 24rpx;
+  color: #5c6f8c;
+  padding: 0 24rpx;
+}
+
+.lg {
+  display: inline-block;
+  width: 28rpx;
+  height: 28rpx;
+  border: 1rpx solid #c6d4e6;
+  background: #fff;
+  margin-right: 6rpx;
+  vertical-align: middle;
+  position: relative;
+}
+
+.lg.sky {
+  background: #5fa9dd;
+}
+
+.lg.hitb {
+  background: #fff;
+}
+
+.lg.hitb::after {
+  content: '';
+  position: absolute;
+  inset: 20%;
+  border-radius: 50%;
+  background: #3d9463;
+}
+
+.lg.hith {
+  background: #fff;
+}
+
+.lg.hith::after {
+  content: '';
+  position: absolute;
+  inset: 12%;
+  clip-path: polygon(50% 4%, 96% 90%, 4% 90%);
+  background: #d23b34;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(60, 52, 32, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 32rpx;
+}
+
+.ov {
+  max-width: 600rpx;
+  width: 100%;
+}
+
+.win-title {
+  font-size: 44rpx;
+  letter-spacing: 6rpx;
+  color: #c0392b;
+  margin-bottom: 16rpx;
+  font-weight: 600;
+}

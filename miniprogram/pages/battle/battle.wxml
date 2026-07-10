@@ -1,0 +1,46 @@
+<view class="page">
+  <view class="banner">{{banner}}</view>
+  <view class="hud">
+    <text>我击落 <text class="big">{{myKilled}}</text>/3</text>
+    <text>对方击落 <text class="big">{{opKilled}}</text>/3</text>
+    <text>倒计时 <text class="big {{urgent ? 'urgent' : ''}}">{{timer}}</text>s</text>
+  </view>
+  <view class="note center" wx:if="{{tosText}}">{{tosText}}</view>
+
+  <view class="boards">
+    <view class="col">
+      <view class="who {{!myTurn ? 'active' : ''}}">我的阵地</view>
+      <board cells="{{mineCells}}" lastShot="{{lastMine}}" popIdx="{{popMine}}" locked="{{true}}" />
+    </view>
+    <view class="col">
+      <view class="who {{myTurn ? 'active' : ''}}">敌方空域 · {{oppName}}</view>
+      <board
+        cells="{{enemyCells}}"
+        lastShot="{{lastEnemy}}"
+        popIdx="{{popEnemy}}"
+        locked="{{!myTurn}}"
+        bind:celltap="onFire"
+      />
+    </view>
+  </view>
+
+  <view class="legend">
+    <text><text class="lg"></text>云</text>
+    <text><text class="lg sky"></text>天空</text>
+    <text><text class="lg hitb"></text>机身</text>
+    <text><text class="lg hith"></text>机头</text>
+  </view>
+
+  <view class="hud" style="margin-top: 20rpx">
+    <button class="btn ghost sm" bindtap="quit">认输退出</button>
+  </view>
+
+  <view class="overlay" wx:if="{{showOver}}">
+    <view class="card center ov">
+      <view class="otitle {{win ? 'win' : 'lose'}}">{{win ? '胜利！' : '落败'}}</view>
+      <view>{{reason}}</view>
+      <view class="note" style="margin-top: 12rpx">{{overTip}}</view>
+      <view class="note" style="margin-top: 8rpx">即将返回大厅…</view>
+    </view>
+  </view>
+</view>
