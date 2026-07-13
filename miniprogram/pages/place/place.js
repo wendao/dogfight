@@ -24,12 +24,14 @@ Page({
     timer: 60,
     urgent: false,
     submitted: false,
-    status: '点选机头位置放置飞机（可重叠，机头不能同格）',
+    status: '同一格点两次放置（防误触），机头锚定',
     canConfirm: false,
     mini: [],
+    selIdx: -1,
   },
   localPlanes: [],
   preview: null,
+  _pending: -1,
   placeEnd: 0,
   timerIv: null,
   _offs: [],
@@ -145,8 +147,14 @@ Page({
   onCell(e) {
     if (this.data.submitted) return;
     const i = e.detail.i;
-    // 触屏：第一次预览，再点同格放置；简化为直接放置
-    this.tryPlace(i);
+    if (this._pending === i) {
+      this._pending = -1;
+      this.tryPlace(i);
+    } else {
+      this._pending = i;
+      this.setData({ selIdx: i });
+      toast('再点一次确认放置');
+    }
   },
   tryPlace(i) {
     if (this.localPlanes.length >= 3) {
@@ -159,6 +167,7 @@ Page({
       return;
     }
     this.localPlanes.push(p);
+    this._pending = -1;
     this.redraw();
   },
   redraw() {
@@ -166,11 +175,11 @@ Page({
     for (const c of silIndices(this.localPlanes)) {
       cells[c.i] = c.h ? 'silhead' : 'sil';
     }
-    // 简单不画预览，避免复杂
     this.setData({
       cells,
       count: this.localPlanes.length,
       canConfirm: this.localPlanes.length === 3 && !this.data.submitted,
+      selIdx: this._pending >= 0 ? this._pending : -1,
     });
   },
   confirm() {

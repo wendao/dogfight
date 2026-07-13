@@ -42,7 +42,9 @@ Page({
     lastEnemy: -1,
     popMine: -1,
     popEnemy: -1,
+    selIdx: -1,
     showOver: false,
+    reviewing: false,
     win: false,
     reason: '',
     overTip: '',
@@ -51,6 +53,8 @@ Page({
   timerIv: null,
   _offs: [],
   busy: false,
+  _pending: -1,
+  reviewing: false,
   onLoad() {
     this.bindWs();
     ws.send({ type: 'sync' });
@@ -67,15 +71,20 @@ Page({
     this._offs.push(
       ws.on('match_state', (msg) => this.onMatch(msg)),
       ws.on('shot_result', (msg) => this.onShot(msg)),
+      ws.on('ladder_state', () => {
+        /* 复盘中不因 match 清空而跳走 */
+      }),
       ws.on('error', (msg) => toast(msg.error || '错误'))
     );
   },
   onMatch(msg) {
     const m = msg.match;
     if (!m) {
+      if (this.reviewing) return;
       wx.redirectTo({ url: '/pages/lobby/lobby' });
       return;
     }
+    if (this.reviewing) return;
     const me = getApp().globalData.player;
     if (m.phase === 'place') {
       wx.redirectTo({ url: '/pages/place/place' });
@@ -100,8 +109,10 @@ Page({
 
     let banner = '';
     if (m.phase === 'battle') {
-      banner = myTurn ? '轮到你开火 —— 点击敌方空域' : `等待 ${opp ? opp.name : '对手'} 行动…`;
+      banner = myTurn ? '轮到你开火 —— 同一格点两次确认' : `等待 ${opp ? opp.name : '对手'} 行动…`;
     }
+
+    if (!myTurn) this._pending = -1;
 
     const lastEnemy =
       m.myShots && m.myShots.length ? m.myShots[m.myShots.length - 1] : -1;
@@ -118,6 +129,7 @@ Page({
       enemyCells,
       lastMine,
       lastEnemy,
+      selIdx: myTurn && this._pending >= 0 ? this._pending : -1,
       tosText: myTos || opTos ? `超时 你${myTos}/3 · 对方${opTos}/3` : '',
     });
 
@@ -134,38 +146,55 @@ Page({
     }
   },
   tickSec() {
-    if (!this.turnEnd) return;
+    if (this.reviewing || !this.turnEnd) return;
     const left = Math.max(0, Math.ceil((this.turnEnd - Date.now()) / 1000));
     this.setData({ timer: left, urgent: left <= 10 });
   },
   onFire(e) {
-    if (!this.data.myTurn || this.busy) return;
+    if (!this.data.myTurn || this.busy || this.reviewing) return;
     const i = e.detail.i;
     const cells = this.data.enemyCells;
     if (cells[i] === 'sky' || cells[i] === 'hitb' || cells[i] === 'hith') return;
-    this.busy = true;
-    ws.send({ type: 'fire', i });
-    setTimeout(() => {
-      this.busy = false;
-    }, 400);
+    if (this._pending === i) {
+      this._pending = -1;
+      this.setData({ selIdx: -1 });
+      this.busy = true;
+      ws.send({ type: 'fire', i });
+      setTimeout(() => {
+        this.busy = false;
+      }, 400);
+    } else {
+      this._pending = i;
+      this.setData({ selIdx: i });
+      toast('再点一次确认开火');
+    }
   },
   showOver(win, reason) {
+    this.reviewing = true;
     this.setData({
       showOver: true,
+      reviewing: true,
+      myTurn: false,
       win,
       reason,
-      overTip: win ? '你将留在擂台迎接下一位挑战者' : '你已回到队列末尾',
+      overTip: '棋盘已揭晓，可复盘后再离开',
+      banner: win ? '胜利！可查看双方布局复盘' : '落败 —— 可查看对手布局复盘',
+      selIdx: -1,
     });
-    let n = 4;
-    const iv = setInterval(() => {
-      n--;
-      if (n <= 0) {
-        clearInterval(iv);
-        wx.redirectTo({ url: '/pages/lobby/lobby' });
-      }
-    }, 1000);
+  },
+  goLobby() {
+    this.reviewing = false;
+    ws.send({ type: 'join_ladder' });
+    wx.redirectTo({ url: '/pages/lobby/lobby' });
+  },
+  leaveLadder() {
+    this.reviewing = false;
+    ws.send({ type: 'leave_ladder' });
+    ws.close();
+    wx.reLaunch({ url: '/pages/index/index' });
   },
   quit() {
+    if (this.reviewing) return;
     wx.showModal({
       title: '认输退出',
       content: '确定认输并退出天梯吗？',

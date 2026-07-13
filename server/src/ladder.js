@@ -90,21 +90,38 @@ class LadderRoom {
   }
 
   join(player) {
-    this.setWs(player, this.online.get(player.id)?.ws || null);
-    this.touch(player);
+    // 保留已有 ws（auth/setWs 已挂上），只刷新心跳与名字
+    const prev = this.online.get(player.id);
+    this.online.set(player.id, {
+      id: player.id,
+      name: player.name,
+      lastHb: Date.now(),
+      ws: prev && prev.ws ? prev.ws : null,
+    });
+
     const isChamp = this.champion && this.champion.id === player.id;
     const inQ = this.queue.some((q) => q.id === player.id);
     const inMatch = this.match && this.match.players.some((p) => p.id === player.id);
-    if (!isChamp && !inQ && !inMatch) {
-      this.queue.push({ id: player.id, name: player.name });
-    } else if (inQ) {
+
+    // 对局中重连：同步名字到 match.players，不重新入队
+    if (inMatch) {
+      const slot = this.match.players.find((p) => p.id === player.id);
+      if (slot) slot.name = player.name;
+    }
+    if (isChamp) this.champion.name = player.name;
+    if (inQ) {
       const q = this.queue.find((x) => x.id === player.id);
       if (q) q.name = player.name;
-    } else if (isChamp) {
-      this.champion.name = player.name;
     }
+
+    if (!isChamp && !inQ && !inMatch) {
+      this.queue.push({ id: player.id, name: player.name });
+    }
+
     this.tryMatchmake();
     this.pushAll();
+    // 重连进对局时立刻推 match_state
+    if (inMatch) this.pushMatch();
   }
 
   leave(playerId) {
@@ -202,10 +219,11 @@ class LadderRoom {
       if (this.match.phase === 'over') {
         this.pushMatch();
         // 稍后再结算，让客户端先看结果
+        // 给双方留复盘时间（客户端可自行停留更久）
         setTimeout(() => {
           this.finalizeMatch();
           this.pushAll();
-        }, 3500);
+        }, 8000);
       } else {
         this.pushMatch();
       }
@@ -319,13 +337,14 @@ class LadderRoom {
       return;
     }
 
-    // 单方离线
+    // 单方离线：超过 DEAD 才判负（给刷新/重连留窗口）
     for (const p of m.players) {
       const info = this.online.get(p.id);
-      if (!info || now - info.lastHb > CFG.DEAD) {
+      const offline = !info || now - info.lastHb > CFG.DEAD;
+      if (offline) {
         const winner = oppId(m, p.id);
         if (winner) {
-          endMatch(m, winner, '对手离线');
+          endMatch(m, winner, '对手离线（超时未重连）');
           this.pushMatch();
           setTimeout(() => {
             this.finalizeMatch();

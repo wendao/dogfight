@@ -11,6 +11,12 @@
   box-sizing: border-box;
 }
 
+.board.turn-glow {
+  border-color: #c0392b;
+  border-width: 6rpx;
+  box-shadow: 0 0 0 8rpx rgba(192, 57, 43, 0.3), 0 0 24rpx rgba(192, 57, 43, 0.45);
+}
+
 .cell {
   position: relative;
   border: 1rpx solid #c6d4e6;
@@ -63,6 +69,11 @@
 
 .cell.last {
   box-shadow: inset 0 0 0 4rpx #c0392b;
+}
+
+.cell.sel {
+  box-shadow: inset 0 0 0 5rpx #c0392b;
+  z-index: 1;
 }
 
 .cell.pvok {

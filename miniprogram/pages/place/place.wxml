@@ -3,7 +3,7 @@
 
   <view class="board-wrap">
     <view class="who">我的阵地</view>
-    <board cells="{{cells}}" locked="{{submitted}}" bind:celltap="onCell" />
+    <board cells="{{cells}}" locked="{{submitted}}" selIdx="{{selIdx}}" bind:celltap="onCell" />
   </view>
 
   <view class="card panel">

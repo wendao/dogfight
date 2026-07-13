@@ -44,9 +44,19 @@ input.nick{border:none;border-bottom:2px solid var(--ink);background:transparent
 .boardtitle{font-size:14px;letter-spacing:1px;display:flex;gap:8px;align-items:center}
 .boardtitle .who{font-family:"Kaiti SC","KaiTi","STKaiti",serif;font-size:17px}
 .boardtitle.active .who{border-bottom:3px solid var(--pen)}
-.board{display:grid;grid-template-columns:repeat(10,1fr);width:min(92vw,380px);aspect-ratio:1;background:#fff;border:2px solid var(--ink);border-radius:4px;user-select:none;touch-action:manipulation}
+.board{display:grid;grid-template-columns:repeat(10,1fr);width:min(92vw,380px);aspect-ratio:1;background:#fff;border:2px solid var(--ink);border-radius:4px;user-select:none;touch-action:manipulation;transition:box-shadow .2s,border-color .2s}
+.board.turn-glow{
+  border-color:var(--pen);border-width:3px;
+  box-shadow:0 0 0 4px rgba(192,57,43,.28),0 0 20px rgba(192,57,43,.4);
+  animation:turnpulse 1.2s ease-in-out infinite;
+}
+@keyframes turnpulse{
+  0%,100%{box-shadow:0 0 0 4px rgba(192,57,43,.28),0 0 14px rgba(192,57,43,.35)}
+  50%{box-shadow:0 0 0 7px rgba(192,57,43,.5),0 0 26px rgba(192,57,43,.55)}
+}
 .cell{position:relative;border:1px solid var(--grid);cursor:pointer;background:#fff}
 .board.locked .cell{cursor:default}
+.cell.sel{box-shadow:inset 0 0 0 2.5px var(--pen);z-index:1}
 .cell.sky{background:var(--sky)}
 .cell.sil{background:#dde4ee}
 .cell.silhead{background:#c4d0e3}
@@ -76,6 +86,10 @@ input.nick{border:none;border-bottom:2px solid var(--ink);background:transparent
 .mini i.h{background:var(--head)}
 ol.queue{margin:6px 0;padding-left:24px;line-height:1.9}
 ol.queue li.me{color:var(--pen);font-weight:700}
+table.lb{border-collapse:collapse;margin:8px auto;font-size:14px;min-width:240px}
+table.lb td,table.lb th{border-bottom:1px dashed #d8d0b8;padding:5px 14px;text-align:left}
+table.lb th{font-weight:400;color:var(--muted);font-size:12px}
+table.lb tr.me td{color:var(--pen);font-weight:700}
 .champ{display:flex;align-items:center;gap:10px;justify-content:center;font-family:"Kaiti SC","KaiTi","STKaiti",serif;font-size:19px;letter-spacing:1px}
 .champ .streak{font-size:14px;color:var(--pen);border:1px solid var(--pen);border-radius:20px;padding:1px 10px}
 .overlay{position:fixed;inset:0;background:rgba(60,52,32,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
@@ -88,6 +102,12 @@ ol.queue li.me{color:var(--pen);font-weight:700}
 .statusline{text-align:center;color:var(--ink-soft);font-size:14px;min-height:20px}
 .homebtns{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:18px}
 .homebtns .btn{font-size:17px;padding:13px 34px;letter-spacing:3px;font-family:"Kaiti SC","KaiTi","STKaiti",serif}
+.reviewbar{
+  position:sticky;bottom:12px;z-index:40;margin:16px auto 0;max-width:520px;
+  background:var(--card);border:1.5px solid var(--ink);border-radius:12px;
+  box-shadow:0 6px 24px rgba(34,57,92,.18);padding:14px 16px;text-align:center;
+}
+.reviewbar .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:12px}
 @media (max-width:820px){.row.battle{flex-direction:column;align-items:center}}
 </style>
 </head>
@@ -137,8 +157,22 @@ function makeBoard(){
       for(const [k,r] of Object.entries(shotMap)){const i=+k;const d=cells[i];
         d.classList.add(r==='head'?'hith':r==='body'?'hitb':'sky');
         if(i===popIdx)d.classList.add('pop');if(i===lastShot)d.classList.add('last');}},
-    paint({silPlanes,shotMap,lastShot=-1,popIdx=-1}={}){
-      this.clear();this.paintSil(silPlanes);this.paintShots(shotMap,lastShot,popIdx);}};
+    paint({silPlanes,shotMap,lastShot=-1,popIdx=-1,selIdx=-1}={}){
+      this.clear();this.paintSil(silPlanes);this.paintShots(shotMap,lastShot,popIdx);
+      if(selIdx>=0&&selIdx<100)cells[selIdx].classList.add('sel');}};
+}
+
+/** 双击确认：同一格连点两次才执行，防平板误触 */
+function makeDoubleTap(onConfirm,onSelect){
+  let pending=-1;
+  return{
+    reset(){pending=-1;if(onSelect)onSelect(-1);},
+    tap(i){
+      if(pending===i){pending=-1;if(onSelect)onSelect(-1);onConfirm(i);return true;}
+      pending=i;if(onSelect)onSelect(i);return false;
+    },
+    get pending(){return pending;}
+  };
 }
 
 /* ========== 状态 ========== */
@@ -147,6 +181,7 @@ let CUR=null;
 let socket=null;
 let ladder=null;
 let match=null;
+let reconnecting=false;
 const SCREENS={};
 const MP={};
 
@@ -156,18 +191,61 @@ function go(name,arg){
   SCREENS[name].enter(arg);
 }
 
+function savePlayer(p){
+  ME=p;
+  try{
+    localStorage.setItem('fly-player',JSON.stringify({id:p.id,name:p.name,token:p.token}));
+    localStorage.setItem('fly-name',p.name||'');
+  }catch{}
+}
+function loadPlayer(){
+  try{
+    const raw=localStorage.getItem('fly-player');
+    if(!raw)return null;
+    const p=JSON.parse(raw);
+    if(p&&p.token&&p.id)return p;
+  }catch{}
+  return null;
+}
+function clearPlayer(){
+  try{localStorage.removeItem('fly-player');}catch{}
+}
+
+/** 同名时加 id 后缀，避免两人看起来一样 */
+function labelOf(p, list){
+  if(!p)return '?';
+  const name=p.name||'玩家';
+  const arr=list||[];
+  const clash=arr.filter(x=>x&&x.name===name).length>1;
+  return clash? name+'·'+String(p.id||'').slice(0,4) : name;
+}
+function allKnownPlayers(){
+  const list=[];
+  if(ladder&&ladder.champion)list.push(ladder.champion);
+  if(ladder&&ladder.queue)list.push(...ladder.queue);
+  if(match&&match.players)list.push(...match.players);
+  return list;
+}
+
 /* ========== 网络 ========== */
-async function apiLogin(name){
-  const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+async function apiLogin(name, token){
+  const r=await fetch('/api/login',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name, token:token||undefined})
+  });
   const j=await r.json();
   if(!j.ok)throw new Error(j.error||'登录失败');
-  return j.player;
+  return {player:j.player, resumed:!!j.resumed};
 }
 
 function wsSend(obj){if(socket&&socket.readyState===1)socket.send(JSON.stringify(obj));}
 
 function connectWS(){
   return new Promise((resolve,reject)=>{
+    if(socket){
+      try{socket.onclose=null;socket.close();}catch{}
+      socket=null;
+    }
     const proto=location.protocol==='https:'?'wss:':'ws:';
     const ws=new WebSocket(proto+'//'+location.host+'/ws');
     socket=ws;
@@ -175,28 +253,69 @@ function connectWS(){
     ws.onopen=()=>wsSend({type:'auth',token:ME.token});
     ws.onmessage=(ev)=>{
       let msg;try{msg=JSON.parse(ev.data);}catch{return;}
-      if(msg.type==='auth_ok'){if(!done){done=true;resolve(msg);}}
+      if(msg.type==='auth_ok'){
+        if(msg.player)savePlayer({...ME,...msg.player,token:ME.token});
+        if(!done){done=true;reconnecting=false;resolve(msg);}
+      }
       if(msg.type==='error'&&!done){done=true;reject(new Error(msg.error));}
       onMsg(msg);
     };
     ws.onerror=()=>{if(!done){done=true;reject(new Error('连接失败'));}};
     ws.onclose=()=>{
-      if(CUR&&CUR!=='home')toast('连接断开，正在重连…');
-      setTimeout(()=>{if(ME&&ME.token)connectWS().then(()=>{
-        if(CUR==='lobby'||CUR==='place'||CUR==='battle')wsSend({type:'join_ladder'});
-        wsSend({type:'sync'});
-      }).catch(()=>{});},2000);
+      if(CUR&&CUR!=='home'&&!reconnecting){
+        reconnecting=true;
+        toast('连接断开，正在重连…');
+      }
+      setTimeout(()=>{
+        if(!ME||!ME.token||CUR==='home')return;
+        connectWS().then(()=>{
+          if(CUR==='lobby'||CUR==='place'||CUR==='battle'){
+            wsSend({type:'join_ladder'});
+            wsSend({type:'sync'});
+          }
+        }).catch(()=>{reconnecting=false;});
+      },1500);
     };
   });
+}
+
+/** 登录并进天梯（支持 token 重连恢复身份） */
+async function enterLadder(name){
+  const saved=loadPlayer();
+  const {player, resumed}=await apiLogin(name, saved&&saved.token);
+  savePlayer(player);
+  await connectWS();
+  go('lobby');
+  if(resumed)toast('已恢复身份，可继续对局');
+}
+
+function routeMatch(m){
+  if(!m||!ME)return;
+  const inMatch=m.players&&m.players.some(p=>p.id===ME.id);
+  if(!inMatch)return;
+  if(m.phase==='place'&&CUR!=='place')go('place');
+  else if(m.phase==='battle'&&CUR!=='battle')go('battle');
+  else if(m.phase==='over'&&CUR!=='battle')go('battle');
 }
 
 function onMsg(msg){
   if(msg.type==='ladder_state'){
     ladder=msg;
+    if(CUR==='battle'&&MP.reviewing){
+      if(SCREENS.battle.onLadder)SCREENS.battle.onLadder(msg);
+      return;
+    }
+    // 重连后若在对局中，自动跳回
+    if(msg.you&&msg.you.inMatch&&msg.matchSummary){
+      if(CUR==='lobby'||CUR==='home'){
+        // 等 match_state 再跳，避免缺布局
+      }
+    }
     if(SCREENS[CUR]&&SCREENS[CUR].onLadder)SCREENS[CUR].onLadder(msg);
   }
   if(msg.type==='match_state'){
     match=msg.match;
+    if(msg.match)routeMatch(msg.match);
     if(SCREENS[CUR]&&SCREENS[CUR].onMatch)SCREENS[CUR].onMatch(msg.match);
   }
   if(msg.type==='shot_result'){
@@ -205,7 +324,13 @@ function onMsg(msg){
   if(msg.type==='place_ok'){
     if(SCREENS[CUR]&&SCREENS[CUR].onPlaceOk)SCREENS[CUR].onPlaceOk();
   }
-  if(msg.type==='error')toast(msg.error||'错误');
+  if(msg.type==='error'){
+    // token 失效（服务重启）：清本地身份
+    if(msg.error&&String(msg.error).includes('认证')){
+      clearPlayer();
+    }
+    toast(msg.error||'错误');
+  }
   if(msg.type==='left_ladder'){/* ok */}
 }
 
@@ -216,17 +341,22 @@ SCREENS.home={
     root.appendChild(h('div',null,headerHTML('局域网天梯 · 浏览器直接玩')));
     const card=h('div','card center');
     card.style.maxWidth='460px';card.style.margin='40px auto 0';
-    const saved=(localStorage.getItem('fly-name')||'');
+    const savedP=loadPlayer();
+    const saved=(savedP&&savedP.name)||localStorage.getItem('fly-name')||'';
     card.innerHTML=
       '<h2 class="sec" style="display:inline-block">飞行员登记</h2>'
       +'<div style="margin:14px 0 6px"><input id="nick" class="nick" maxlength="12" placeholder="写下你的代号" value="'+esc(saved)+'"></div>'
+      +(savedP?'<div class="note" style="margin-bottom:8px">已保存身份 <b class="red-ink">'+esc(savedP.name)+'</b>（'+esc(savedP.id)+'），刷新可重连同一账号</div>':'')
       +'<div class="homebtns">'
       +'<button class="btn" id="btnSingle">单人练习</button>'
       +'<button class="btn red" id="btnLadder">进入天梯</button>'
       +'</div>'
-      +'<div class="note" style="margin-top:18px">10×10 藏 3 架飞机，打中 3 个机头获胜。<br>'
-      +'天梯：把本页地址发给同一 Wi‑Fi 的朋友即可联机。胜者守擂，败者垫底。<br>'
-      +'当前地址：<b class="red-ink">'+esc(location.origin)+'</b></div>';
+      +(savedP?'<div style="margin-top:10px"><button class="btn ghost sm" id="btnNewId">换新身份</button></div>':'')
+      +'<div class="note" style="margin-top:18px">10×10 方格里藏着 3 架飞机，蓝色是天空，绿圆是机身机翼，红三角是机头。<br>'
+      +'集齐 3 个红三角即获胜。天梯：把本页地址发给同一 Wi‑Fi 的朋友即可联机。胜者守擂，败者垫底。<br>'
+      +'掉线/刷新后 <b>60 秒内</b>再进天梯可恢复对局。身份按账号 id，同名无妨。<br>'
+      +'当前地址：<b class="red-ink">'+esc(location.origin)+'</b></div>'
+      +'<div id="homelb" style="margin-top:14px"></div>';
     root.appendChild(card);
     $('#btnSingle').onclick=async()=>{
       const name=$('#nick').value.trim();
@@ -237,18 +367,60 @@ SCREENS.home={
     $('#btnLadder').onclick=async()=>{
       const name=$('#nick').value.trim();
       if(!name){toast('请输入代号');return;}
-      localStorage.setItem('fly-name',name);
-      try{
-        ME=await apiLogin(name);
-        await connectWS();
-        go('lobby');
-      }catch(e){toast('连不上服务器');console.error(e);}
+      try{await enterLadder(name);}
+      catch(e){toast('连不上服务器');console.error(e);}
     };
+    const bn=$('#btnNewId');
+    if(bn)bn.onclick=()=>{clearPlayer();toast('已清除旧身份');go('home');};
     $('#nick').addEventListener('keydown',e=>{if(e.key==='Enter')$('#btnLadder').click();});
+    this.loadLb();
+  },
+  async loadLb(){
+    const best=+localStorage.getItem('sp-best')||0;
+    const meName=localStorage.getItem('fly-name')||'';
+    let html='';
+    if(best)html+='<div class="red-ink">个人最少步数纪录：'+best+' 步</div>';
+    try{
+      const lb=await fetchSpLb();
+      if(lb.length){
+        html+='<table class="lb"><tr><th>#</th><th>全服单人榜</th><th>步数</th></tr>';
+        lb.slice(0,5).forEach((r,i)=>{html+='<tr'+(r.n===meName?' class="me"':'')+'><td>'+(i+1)+'</td><td>'+esc(r.n)+'</td><td>'+r.s+'</td></tr>';});
+        html+='</table>';
+      }
+    }catch{}
+    const el=$('#homelb');if(el)el.innerHTML=html;
   }
 };
 
 /* ========== 单人 ========== */
+async function fetchSpLb(){
+  try{
+    const r=await fetch('/api/sp-lb');
+    const j=await r.json();
+    return j.ok? (j.lb||[]) : [];
+  }catch{return [];}
+}
+async function postSpScore(steps,name){
+  try{
+    const r=await fetch('/api/sp-score',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({steps,name})
+    });
+    const j=await r.json();
+    return j.ok? (j.lb||[]) : null;
+  }catch{return null;}
+}
+function renderLbHtml(el,lb,best,meName){
+  if(!el)return;
+  let html='';
+  if(best)html+='<div class="red-ink" style="margin-bottom:4px">我的最佳：'+best+' 步</div>';
+  if(lb&&lb.length){
+    html+='<table class="lb" style="margin:4px 0;min-width:0;width:100%"><tr><th>#</th><th>飞行员</th><th>步数</th></tr>';
+    lb.forEach((r,i)=>{html+='<tr'+(meName&&r.n===meName?' class="me"':'')+'><td>'+(i+1)+'</td><td>'+esc(r.n)+'</td><td>'+r.s+'</td></tr>';});
+    html+='</table>';
+  }else html+='<div>还没有任何纪录，打完这一局，榜首就是你！</div>';
+  el.innerHTML=html;
+}
 SCREENS.single={
   st:null,
   enter(){
@@ -256,18 +428,44 @@ SCREENS.single={
     st.map=valueMap(st.planes);st.heads=headSet(st.planes);
     const root=app();
     root.appendChild(h('div',null,headerHTML('单人练习')));
-    const wrap=h('div','col');wrap.style.alignItems='center';wrap.style.gap='14px';
+    const row=h('div','row');
+    const left=h('div','col');left.style.alignItems='center';left.style.gap='14px';
     const hud=h('div','hud');
     hud.innerHTML='<span>步数 <b id="spSteps" class="big">0</b></span><span>击落 <b id="spGot" class="big">0</b>/3</span>';
     st.board=makeBoard();
     const bw=h('div','boardwrap');bw.appendChild(st.board.el);
     const btns=h('div','hud');
     btns.innerHTML='<button class="btn ghost sm" id="spBack">返回首页</button><button class="btn sm" id="spRe">重新开始</button>';
-    wrap.appendChild(hud);wrap.appendChild(bw);wrap.appendChild(h('div',null,legendHTML()));wrap.appendChild(btns);
-    root.appendChild(wrap);
+    left.appendChild(hud);left.appendChild(bw);left.appendChild(h('div',null,legendHTML()));left.appendChild(btns);
+    const side=h('div','col');side.style.gap='16px';side.style.width='min(92vw,300px)';
+    const intro=h('div','card');
+    intro.innerHTML='<h2 class="sec">游戏介绍</h2>'
+      +'<div class="note">10×10 的云层里藏着 <b>3 架飞机</b>，每架占 11 格，形状如下，可朝上、下、左、右任一方向：</div>'
+      +'<div class="mini" id="spShape" style="margin:10px auto;grid-template-columns:repeat(5,20px);grid-auto-rows:20px"></div>'
+      +'<div class="note" style="text-align:center;margin-bottom:8px"><span style="color:var(--head)">■</span> 机头　<span style="color:#8fa5c4">■</span> 机身机翼</div>'
+      +'<div class="note">飞机之间可能重叠（机头不会与机头同格）；重叠处只显示优先级最高的标记，不会透露下面压了几架。</div>'
+      +'<div class="note" style="margin-top:8px">每次点击翻开一格：<b>蓝色</b>=天空（打空），<b>绿圆</b>=机身机翼，<b>红三角</b>=机头。</div>'
+      +'<div class="note" style="margin-top:8px"><b class="red-ink">取胜条件：集齐 3 个红三角。</b>步数越少，排名越高。</div>';
+    const lbcard=h('div','card');
+    lbcard.innerHTML='<h2 class="sec">最少步数排行</h2><div id="spLb" class="note">加载中…</div>';
+    side.appendChild(intro);side.appendChild(lbcard);
+    row.appendChild(left);row.appendChild(side);
+    root.appendChild(row);
+    const shape=$('#spShape');
+    if(shape){for(let k=0;k<25;k++)shape.appendChild(h('i'));
+      for(const cell of ORIENTS[0].cells)shape.children[cell.dr*5+cell.dc].className=cell.h?'h':'b';}
     st.board.el.addEventListener('click',e=>{const t=e.target.closest('.cell');if(!t)return;this.shoot(+t.dataset.i);});
     $('#spBack').onclick=()=>go('home');
     $('#spRe').onclick=()=>go('single');
+    this.loadLb();
+  },
+  async loadLb(){
+    if(CUR!=='single')return;
+    const best=+localStorage.getItem('sp-best')||0;
+    const meName=(ME&&ME.name)||localStorage.getItem('fly-name')||'';
+    const lb=await fetchSpLb();
+    if(CUR!=='single')return;
+    renderLbHtml($('#spLb'),lb,best,meName);
   },
   shoot(i){
     const st=this.st;if(st.over||st.rev.has(i))return;
@@ -277,7 +475,7 @@ SCREENS.single={
     $('#spSteps').textContent=st.steps;$('#spGot').textContent=st.got;
     if(st.got>=3){st.over=true;this.win();}
   },
-  win(){
+  async win(){
     const st=this.st;
     for(const p of st.planes)for(const cell of planeCells(p)){
       const i=cell.r*10+cell.c;
@@ -285,11 +483,16 @@ SCREENS.single={
     }
     let best=+localStorage.getItem('sp-best')||0;let isNew=false;
     if(!best||st.steps<best){best=st.steps;isNew=true;localStorage.setItem('sp-best',best);}
+    const name=(ME&&ME.name)||localStorage.getItem('fly-name')||'飞行员';
+    const lb=(await postSpScore(st.steps,name))||[];
+    this.loadLb();
+    let rows='';lb.forEach((r,k)=>{rows+='<tr'+(r.n===name&&r.s===st.steps?' class="me"':'')+'><td>'+(k+1)+'</td><td>'+esc(r.n)+'</td><td>'+r.s+'</td></tr>';});
     const ov=h('div','overlay');
     ov.innerHTML='<div class="card"><h3 class="win">全部击落！</h3>'
-      +'<div>本局用了 <b class="red-ink" style="font-size:24px">'+st.steps+'</b> 步'
-      +(isNew?'<div class="red-ink">刷新个人纪录！</div>':'<div class="note">个人纪录 '+best+' 步</div>')
-      +'</div><div class="hud" style="margin-top:12px"><button class="btn" id="ovAgain">再来一局</button><button class="btn ghost" id="ovHome">返回首页</button></div></div>';
+      +'<div style="font-size:17px">本局用了 <b class="red-ink" style="font-size:24px">'+st.steps+'</b> 步'
+      +(isNew?'<div class="red-ink" style="margin-top:4px">✿ 刷新个人纪录！</div>':'<div class="note">个人纪录 '+best+' 步</div>')
+      +'</div>'+(lb.length?'<table class="lb"><tr><th>#</th><th>全服单人榜</th><th>步数</th></tr>'+rows+'</table>':'<div class="note">全服榜暂时无法同步</div>')
+      +'<div class="hud" style="margin-top:12px"><button class="btn" id="ovAgain">再来一局</button><button class="btn ghost" id="ovHome">返回首页</button></div></div>';
     document.body.appendChild(ov);
     $('#ovAgain').onclick=()=>{ov.remove();go('single');};
     $('#ovHome').onclick=()=>{ov.remove();go('home');};
@@ -321,14 +524,15 @@ SCREENS.lobby={
   onLadder(msg){
     if(CUR!=='lobby')return;
     const cc=$('#champCard');if(!cc)return;
+    const known=[].concat(msg.champion?[msg.champion]:[],msg.queue||[]);
     if(msg.champion&&msg.champion.id){
-      cc.innerHTML='<div class="champ"><span>🏆</span><span>擂主 · '+esc(msg.champion.name)+'</span>'
+      cc.innerHTML='<div class="champ"><span>🏆</span><span>擂主 · '+esc(labelOf(msg.champion,known))+'</span>'
         +(msg.streak>1?'<span class="streak">'+msg.streak+' 连胜</span>':'')+'</div>'
         +(msg.you&&msg.you.isChamp?'<div class="red-ink" style="margin-top:6px">你正在守擂，等待挑战者…</div>':'');
     }else cc.innerHTML='<div class="champ"><span>🏆</span><span class="note">擂台虚位以待</span></div>';
     const ql=$('#qList');
     if(msg.queue&&msg.queue.length){
-      ql.innerHTML=msg.queue.map(q=>'<li'+(q.id===ME.id?' class="me"':'')+'>'+esc(q.name)+(q.id===ME.id?'（你）':'')+'</li>').join('');
+      ql.innerHTML=msg.queue.map(q=>'<li'+(q.id===ME.id?' class="me"':'')+'>'+esc(labelOf(q,known))+(q.id===ME.id?'（你）':'')+'</li>').join('');
     }else ql.innerHTML='<li class="note">队列空空如也</li>';
     if(!msg.matchId){
       const n=(msg.queue?msg.queue.length:0)+(msg.champion?1:0);
@@ -340,12 +544,13 @@ SCREENS.lobby={
     if(CUR!=='lobby')return;
     const inMatch=m.players.some(p=>p.id===ME.id);
     if(inMatch&&m.phase==='place'){go('place');return;}
-    if(inMatch&&m.phase==='battle'){go('battle');return;}
+    if(inMatch&&(m.phase==='battle'||m.phase==='over')){go('battle');return;}
     // 观战
     const [P0,P1]=m.players;
+    const known=m.players;
     const area=$('#specArea');const st=$('#lbStatus');
     if(m.phase==='place'){
-      st.innerHTML='对局：<b>'+esc(P0.name)+'</b> vs <b>'+esc(P1.name)+'</b> —— 双方布阵中…';
+      st.innerHTML='对局：<b>'+esc(labelOf(P0,known))+'</b> vs <b>'+esc(labelOf(P1,known))+'</b> —— 双方布阵中…';
       area.innerHTML='';MP.specBoards=null;return;
     }
     if(!MP.specBoards){
@@ -369,14 +574,14 @@ SCREENS.lobby={
     const k0=(m.killed&&m.killed[P1.id])||0;
     const k1=(m.killed&&m.killed[P0.id])||0;
     const t0=$('#specT0'),t1=$('#specT1');
-    if(t0)t0.innerHTML='<span class="who">'+esc(P0.name)+'</span><span class="note">被击落 '+k0+'/3</span>';
-    if(t1)t1.innerHTML='<span class="who">'+esc(P1.name)+'</span><span class="note">被击落 '+k1+'/3</span>';
+    if(t0)t0.innerHTML='<span class="who">'+esc(labelOf(P0,known))+'</span><span class="note">被击落 '+k0+'/3</span>';
+    if(t1)t1.innerHTML='<span class="who">'+esc(labelOf(P1,known))+'</span><span class="note">被击落 '+k1+'/3</span>';
     if(m.phase==='over'){
       const w=m.players.find(p=>p.id===m.winner);
-      st.innerHTML='<span class="red-ink" style="font-size:17px">'+esc(w?w.name:'?')+' 获胜！</span>（'+esc(m.reason||'')+'）即将开始新对局…';
+      st.innerHTML='<span class="red-ink" style="font-size:17px">'+esc(w?labelOf(w,known):'?')+' 获胜！</span>（'+esc(m.reason||'')+'）即将开始新对局…';
     }else{
       const tp=m.players.find(p=>p.id===m.turn);
-      st.innerHTML='观战中 · 轮到 <b>'+esc(tp?tp.name:'')+'</b>';
+      st.innerHTML='观战中 · 轮到 <b>'+esc(tp?labelOf(tp,known):'')+'</b>';
     }
   },
   leave(){}
@@ -388,7 +593,7 @@ SCREENS.place={
     Object.assign(MP,{localPlanes:[],orient:0,preview:null,submitted:false,autoDone:false});
     const root=app();
     const opp=match?match.players.find(p=>p.id!==ME.id):null;
-    root.appendChild(h('div',null,headerHTML('布阵 · 对手：'+(opp?opp.name:'?'))));
+    root.appendChild(h('div',null,headerHTML('布阵 · 对手：'+(opp?labelOf(opp,match.players):'?'))));
     const wrap=h('div','row');
     const bw=h('div','boardwrap');
     bw.innerHTML='<div class="boardtitle"><span class="who">我的阵地</span></div>';
@@ -397,37 +602,48 @@ SCREENS.place={
     panel.innerHTML='<h2 class="sec">部署 3 架飞机</h2>'
       +'<div class="hud" style="justify-content:flex-start"><span>剩余</span><b id="plTimer" class="big timer">60</b><span>秒</span></div>'
       +'<div class="hud" style="justify-content:flex-start"><span>已部署</span><b id="plCount" class="big">0</b>/3</div>'
-      +'<div><div class="note">朝向：<span id="plOri">'+ONAMES[0]+'</span>（R 旋转）</div><div class="mini" id="plMini"></div></div>'
+      +'<div><div class="note">朝向：<span id="plOri">'+ONAMES[0]+'</span>（空格 / R 旋转）</div><div class="mini" id="plMini"></div></div>'
       +'<div class="hud" style="justify-content:flex-start;gap:8px">'
       +'<button class="btn sm" id="plRot">旋转</button>'
       +'<button class="btn ghost sm" id="plUndo">撤销</button>'
       +'<button class="btn ghost sm" id="plClear">清空</button>'
       +'<button class="btn ghost sm" id="plRand">随机</button></div>'
       +'<button class="btn red" id="plOk" disabled>确认出击</button>'
-      +'<div class="note" id="plStat">点击棋盘放置（机头锚定）。可重叠，机头不能同格。</div>';
+      +'<div class="note" id="plStat">同一格点两次放置（防误触），机头锚定。可重叠，机头不能同格。</div>';
     wrap.appendChild(bw);wrap.appendChild(panel);root.appendChild(wrap);
+    MP.placeTap=makeDoubleTap((i)=>this.tryPlace(i),(i)=>{MP.preview=i<0?null:i;this.redraw();});
     this.drawMini();this.redraw();
     MP.board.el.addEventListener('mousemove',e=>{
-      if(MP.submitted)return;const t=e.target.closest('.cell');if(!t)return;this.setPreview(+t.dataset.i);
+      if(MP.submitted)return;const t=e.target.closest('.cell');if(!t)return;
+      // 有精确定位鼠标时：悬停仅预览，不占用双击状态
+      if(matchMedia('(hover:hover) and (pointer:fine)').matches){
+        MP.preview=+t.dataset.i;this.redraw();
+      }
     });
-    MP.board.el.addEventListener('mouseleave',()=>{if(!MP.submitted){MP.preview=null;this.redraw();}});
+    MP.board.el.addEventListener('mouseleave',()=>{
+      if(!MP.submitted&&matchMedia('(hover:hover) and (pointer:fine)').matches){
+        if(MP.placeTap.pending<0){MP.preview=null;this.redraw();}
+      }
+    });
     MP.board.el.addEventListener('click',e=>{
       if(MP.submitted)return;const t=e.target.closest('.cell');if(!t)return;
-      const i=+t.dataset.i;const hoverable=matchMedia('(hover:hover)').matches;
-      if(hoverable){this.setPreview(i);this.tryPlace(i);}
-      else{if(MP.preview===i)this.tryPlace(i);else this.setPreview(i);}
+      MP.placeTap.tap(+t.dataset.i);
     });
     $('#plRot').onclick=()=>this.rotate();
-    this.keyH=e=>{if(e.key==='r'||e.key==='R')this.rotate();};
+    this.keyH=e=>{
+      if(e.key==='r'||e.key==='R'||e.code==='Space'||e.key===' '){
+        e.preventDefault();this.rotate();
+      }
+    };
     document.addEventListener('keydown',this.keyH);
-    $('#plUndo').onclick=()=>{if(!MP.submitted&&MP.localPlanes.length){MP.localPlanes.pop();this.redraw();}};
-    $('#plClear').onclick=()=>{if(!MP.submitted){MP.localPlanes=[];this.redraw();}};
-    $('#plRand').onclick=()=>{if(!MP.submitted){MP.localPlanes=randomLayout();this.redraw();}};
+    $('#plUndo').onclick=()=>{if(!MP.submitted&&MP.localPlanes.length){MP.localPlanes.pop();if(MP.placeTap)MP.placeTap.reset();this.redraw();}};
+    $('#plClear').onclick=()=>{if(!MP.submitted){MP.localPlanes=[];if(MP.placeTap)MP.placeTap.reset();this.redraw();}};
+    $('#plRand').onclick=()=>{if(!MP.submitted){MP.localPlanes=randomLayout();if(MP.placeTap)MP.placeTap.reset();this.redraw();}};
     $('#plOk').onclick=()=>this.confirm();
     this.secIv=setInterval(()=>this.sec(),500);
     if(match)this.onMatch(match);
   },
-  rotate(){if(MP.submitted)return;MP.orient=(MP.orient+1)%4;$('#plOri').textContent=ONAMES[MP.orient];this.drawMini();this.redraw();},
+  rotate(){if(MP.submitted)return;MP.orient=(MP.orient+1)%4;$('#plOri').textContent=ONAMES[MP.orient];if(MP.placeTap)MP.placeTap.reset();this.drawMini();this.redraw();},
   drawMini(){const m=$('#plMini');if(!m)return;m.innerHTML='';
     const g=Array.from({length:25},()=>h('i'));
     for(const cell of ORIENTS[MP.orient].cells)g[cell.dr*5+cell.dc].className=cell.h?'h':'b';
@@ -436,12 +652,15 @@ SCREENS.place={
   tryPlace(i){
     if(MP.localPlanes.length>=3){toast('已放满 3 架');return;}
     const p=planeAt(MP.orient,i);
-    if(!planeValid(p,MP.localPlanes))return;
-    MP.localPlanes.push(p);this.redraw();
+    if(!planeValid(p,MP.localPlanes)){toast('位置不合法');return;}
+    MP.localPlanes.push(p);
+    if(MP.placeTap)MP.placeTap.reset();
+    this.redraw();
   },
   redraw(){
     if(CUR!=='place')return;
-    MP.board.paint({silPlanes:MP.localPlanes});
+    const sel=MP.placeTap?MP.placeTap.pending:-1;
+    MP.board.paint({silPlanes:MP.localPlanes,selIdx:sel});
     if(MP.preview!=null&&!MP.submitted&&MP.localPlanes.length<3){
       const p=planeAt(MP.orient,MP.preview);
       const ok=planeValid(p,MP.localPlanes);
@@ -450,12 +669,14 @@ SCREENS.place={
         MP.board.cells[cell.r*10+cell.c].classList.add(ok?'pvok':'pvbad');
       }
     }
+    if(sel>=0)MP.board.cells[sel].classList.add('sel');
     const cnt=$('#plCount');if(cnt)cnt.textContent=MP.localPlanes.length;
     const ok=$('#plOk');if(ok)ok.disabled=!(MP.localPlanes.length===3)||MP.submitted;
   },
   confirm(){
     if(MP.submitted||MP.localPlanes.length!==3)return;
     MP.submitted=true;MP.board.el.classList.add('locked');
+    if(MP.placeTap)MP.placeTap.reset();
     $('#plOk').disabled=true;
     $('#plStat').innerHTML='<span class="red-ink">阵型已锁定，等待对手…</span>';
     wsSend({type:'place',planes:MP.localPlanes});
@@ -493,10 +714,10 @@ SCREENS.place={
 /* ========== 对战 ========== */
 SCREENS.battle={
   enter(){
-    Object.assign(MP,{overShown:false,busyFire:false});
+    Object.assign(MP,{overShown:false,busyFire:false,reviewing:false,fireSel:-1,frozenMatch:null});
     const root=app();
     const opp=match?match.players.find(p=>p.id!==ME.id):null;
-    root.appendChild(h('div',null,headerHTML('对局 · '+((opp&&opp.name)||'?'))));
+    root.appendChild(h('div',null,headerHTML('对局 · '+((opp&&labelOf(opp,match.players))||'?'))));
     const banner=h('div','turnbanner');banner.id='btBanner';
     const hud=h('div','hud');
     hud.innerHTML='<span>我击落 <b id="btMy" class="big">0</b>/3</span>'
@@ -507,25 +728,38 @@ SCREENS.battle={
     MP.mineB=makeBoard();MP.mineB.el.classList.add('locked');
     MP.enemyB=makeBoard();
     const bw1=h('div','boardwrap');bw1.innerHTML='<div class="boardtitle" id="btT0"><span class="who">我的阵地</span></div>';bw1.appendChild(MP.mineB.el);
-    const bw2=h('div','boardwrap');bw2.innerHTML='<div class="boardtitle" id="btT1"><span class="who">敌方空域</span></div>';bw2.appendChild(MP.enemyB.el);
+    const bw2=h('div','boardwrap');bw2.id='enemyWrap';bw2.innerHTML='<div class="boardtitle" id="btT1"><span class="who">敌方空域</span></div>';bw2.appendChild(MP.enemyB.el);
     row.appendChild(bw1);row.appendChild(bw2);
     const foot=h('div','col');foot.style.alignItems='center';foot.style.gap='8px';
     foot.appendChild(h('div',null,legendHTML()));
     foot.appendChild(h('div',null,'<button class="btn ghost sm" id="btQuit">认输退出</button>'));
+    const review=h('div','reviewbar');review.id='reviewBar';review.style.display='none';
     const wrap=h('div','col');wrap.style.gap='12px';
-    wrap.appendChild(banner);wrap.appendChild(hud);wrap.appendChild(row);wrap.appendChild(foot);
+    wrap.appendChild(banner);wrap.appendChild(hud);wrap.appendChild(row);wrap.appendChild(foot);wrap.appendChild(review);
     root.appendChild(wrap);
+    MP.fireTap=makeDoubleTap((i)=>this.doFire(i),(i)=>{MP.fireSel=i;this.repaintEnemySel();});
     MP.enemyB.el.addEventListener('click',e=>{
-      const t=e.target.closest('.cell');if(!t)return;this.fire(+t.dataset.i);
+      if(MP.reviewing)return;
+      const t=e.target.closest('.cell');if(!t)return;
+      const i=+t.dataset.i;
+      const m=match;if(!m||m.phase!=='battle'||m.turn!==ME.id)return;
+      if(m.shotResults&&m.shotResults[i]!=null)return;
+      const confirmed=MP.fireTap.tap(i);
+      if(!confirmed)toast('再点一次确认开火');
     });
     $('#btQuit').onclick=()=>{if(confirm('确定认输并退出？')){wsSend({type:'surrender'});wsSend({type:'leave_ladder'});if(socket)socket.close();go('home');}};
     this.secIv=setInterval(()=>this.sec(),500);
     if(match)this.onMatch(match);
   },
-  fire(i){
+  repaintEnemySel(){
+    if(!MP.enemyB)return;
+    for(const c of MP.enemyB.cells)c.classList.remove('sel');
+    if(MP.fireSel>=0)MP.enemyB.cells[MP.fireSel].classList.add('sel');
+  },
+  doFire(i){
     const m=match;if(!m||m.phase!=='battle'||m.turn!==ME.id||MP.busyFire)return;
     if(m.shotResults&&m.shotResults[i]!=null)return;
-    MP.busyFire=true;
+    MP.busyFire=true;MP.fireSel=-1;
     wsSend({type:'fire',i});
     setTimeout(()=>{MP.busyFire=false;},400);
   },
@@ -533,8 +767,12 @@ SCREENS.battle={
     if(msg.by===ME.id&&MP.enemyB)MP.enemyB.cells[msg.i].classList.add('pop');
     else if(MP.mineB&&msg.i!=null)MP.mineB.cells[msg.i].classList.add('pop');
   },
+  onLadder(_msg){
+    // 复盘中忽略跳转
+  },
   onMatch(m){
     if(CUR!=='battle')return;
+    if(MP.reviewing)return;
     if(m.phase==='place'){go('place');return;}
     if(!m.players.some(p=>p.id===ME.id)){go('lobby');return;}
     const opp=m.players.find(p=>p.id!==ME.id);
@@ -545,38 +783,73 @@ SCREENS.battle={
     let sil=null;
     if(m.phase==='over'&&m.reveal&&opp)sil=m.reveal[opp.id];
     MP.enemyB.paint({silPlanes:sil,shotMap:enemyMap,
-      lastShot:m.myShots&&m.myShots.length?m.myShots[m.myShots.length-1]:-1});
-    MP.enemyB.el.classList.toggle('locked',!myTurn);
+      lastShot:m.myShots&&m.myShots.length?m.myShots[m.myShots.length-1]:-1,
+      selIdx:myTurn?MP.fireSel:-1});
+    MP.enemyB.el.classList.toggle('locked',!myTurn||m.phase==='over');
+    MP.enemyB.el.classList.toggle('turn-glow',myTurn);
     $('#btMy').textContent=(m.killed&&m.killed[ME.id])||0;
     $('#btOp').textContent=(opp&&m.killed&&m.killed[opp.id])||0;
     $('#btT0').className='boardtitle'+(m.turn===opp.id&&m.phase==='battle'?' active':'');
     $('#btT1').className='boardtitle'+(myTurn?' active':'');
     const bn=$('#btBanner');
-    if(m.phase==='battle')bn.innerHTML=myTurn?'<span class="t">轮到你开火</span> —— 点击敌方空域':'等待 <span class="t">'+esc(opp?opp.name:'')+'</span> 行动…';
+    if(m.phase==='battle'){
+      bn.innerHTML=myTurn
+        ?'<span class="t">轮到你开火</span> —— 同一格点两次确认'
+        :'等待 <span class="t">'+esc(opp?labelOf(opp,m.players):'')+'</span> 行动…';
+    }
     const myTos=(m.tos&&m.tos[ME.id])||0,opTos=(opp&&m.tos&&m.tos[opp.id])||0;
     $('#btTos').textContent=(myTos||opTos)?('超时 你'+myTos+'/3 · 对方'+opTos+'/3'):'';
     MP.turnEnd=m.turnEnd;
+    if(!myTurn&&MP.fireTap){MP.fireTap.reset();MP.fireSel=-1;}
     if(m.phase==='over')this.onOver(m);
   },
   sec(){
+    if(MP.reviewing)return;
     const el=$('#btTimer');if(!el||!MP.turnEnd)return;
     const left=Math.max(0,Math.ceil((MP.turnEnd-Date.now())/1000));
     el.textContent=left;el.classList.toggle('urgent',left<=10);
   },
   onOver(m){
-    if(MP.overShown)return;MP.overShown=true;
+    if(MP.overShown)return;MP.overShown=true;MP.reviewing=true;
+    MP.frozenMatch=m;
+    if(MP.fireTap)MP.fireTap.reset();
+    MP.fireSel=-1;
+    MP.enemyB.el.classList.add('locked');
+    MP.enemyB.el.classList.remove('turn-glow');
     const win=m.winner===ME.id;
-    const ov=h('div','overlay');
-    ov.innerHTML='<div class="card"><h3 class="'+(win?'win':'lose')+'">'+(win?'胜利！':'落败')+'</h3>'
-      +'<div>'+esc(m.reason||'')+'</div>'
-      +'<div class="note" style="margin-top:8px">'+(win?'你将守擂迎接下一位':'你已回到队列末尾')+'</div>'
-      +'<div class="note" id="ovCnt" style="margin-top:6px">4 秒后返回大厅…</div></div>';
-    document.body.appendChild(ov);
-    let n=4;
-    const iv=setInterval(()=>{n--;const c=$('#ovCnt');if(c)c.textContent=n+' 秒后返回大厅…';
-      if(n<=0){clearInterval(iv);ov.remove();if(CUR==='battle')go('lobby');}},1000);
+    const opp=m.players.find(p=>p.id!==ME.id);
+    // 确保对手布局已揭晓
+    if(opp&&m.reveal){
+      MP.enemyB.paint({silPlanes:m.reveal[opp.id],shotMap:m.shotResults||{},
+        lastShot:m.myShots&&m.myShots.length?m.myShots[m.myShots.length-1]:-1});
+    }
+    const bn=$('#btBanner');
+    if(bn)bn.innerHTML=win?'<span class="t">胜利！</span> 可查看双方布局复盘':'落败 —— 可查看对手布局复盘';
+    const bar=$('#reviewBar');
+    if(bar){
+      bar.style.display='block';
+      bar.innerHTML='<h3 class="'+(win?'win':'lose')+'" style="margin:0 0 6px;font-size:22px;letter-spacing:2px">'+(win?'胜利！':'落败')+'</h3>'
+        +'<div>'+esc(m.reason||'')+'</div>'
+        +'<div class="note" style="margin-top:6px">棋盘已揭晓，可慢慢复盘。就绪后再离开。</div>'
+        +'<div class="actions">'
+        +'<button class="btn" id="rvLobby">'+(win?'返回大厅守擂':'回到队尾')+'</button>'
+        +'<button class="btn ghost" id="rvLeave">离开天梯</button>'
+        +'</div>';
+      $('#rvLobby').onclick=()=>{
+        MP.reviewing=false;
+        wsSend({type:'join_ladder'});
+        go('lobby');
+      };
+      $('#rvLeave').onclick=()=>{
+        MP.reviewing=false;
+        wsSend({type:'leave_ladder'});
+        if(socket)try{socket.close();}catch(e){}
+        go('home');
+      };
+    }
+    const quit=$('#btQuit');if(quit)quit.style.display='none';
   },
-  leave(){if(this.secIv)clearInterval(this.secIv);document.querySelectorAll('.overlay').forEach(o=>o.remove());}
+  leave(){if(this.secIv)clearInterval(this.secIv);MP.reviewing=false;document.querySelectorAll('.overlay').forEach(o=>o.remove());}
 };
 
 /* ========== 启动 ========== */

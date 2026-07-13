@@ -17,6 +17,14 @@ Component({
       type: Number,
       value: -1,
     },
+    selIdx: {
+      type: Number,
+      value: -1,
+    },
+    turnGlow: {
+      type: Boolean,
+      value: false,
+    },
   },
   methods: {
     onTap(e) {

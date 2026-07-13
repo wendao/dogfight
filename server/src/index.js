@@ -20,9 +20,13 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.post('/api/login', (req, res) => {
-  const { name } = req.body || {};
-  const player = login(name);
-  res.json({ ok: true, player: { id: player.id, name: player.name, token: player.token } });
+  const { name, token } = req.body || {};
+  const player = login(name, token);
+  res.json({
+    ok: true,
+    player: { id: player.id, name: player.name, token: player.token },
+    resumed: !!player.resumed,
+  });
 });
 
 app.get('/api/me', (req, res) => {
@@ -30,6 +34,27 @@ app.get('/api/me', (req, res) => {
   const player = auth(token);
   if (!player) return res.status(401).json({ ok: false, error: '未登录' });
   res.json({ ok: true, player: { id: player.id, name: player.name } });
+});
+
+/** 单人全服榜（内存，重启清空） */
+let spLb = []; // [{n,s,t}]
+
+app.get('/api/sp-lb', (_req, res) => {
+  res.json({ ok: true, lb: spLb.slice(0, 10) });
+});
+
+app.post('/api/sp-score', (req, res) => {
+  const name = String((req.body && req.body.name) || '飞行员')
+    .trim()
+    .slice(0, 12) || '飞行员';
+  const steps = Number(req.body && req.body.steps);
+  if (!Number.isInteger(steps) || steps < 1 || steps > 100) {
+    return res.status(400).json({ ok: false, error: '无效步数' });
+  }
+  spLb.push({ n: name, s: steps, t: Date.now() });
+  spLb.sort((a, b) => a.s - b.s || a.t - b.t);
+  spLb = spLb.slice(0, 10);
+  res.json({ ok: true, lb: spLb });
 });
 
 const server = http.createServer(app);
@@ -60,12 +85,18 @@ wss.on('connection', (ws) => {
 
     if (msg.type === 'auth') {
       player = auth(msg.token);
-      if (!player) return send(ws, { type: 'error', error: '认证失败' });
+      if (!player) return send(ws, { type: 'error', error: '认证失败，请重新登录' });
       room.setWs(player, ws);
       room.touch(player);
       send(ws, { type: 'auth_ok', player: { id: player.id, name: player.name } });
-      send(ws, room.ladderState(player.id));
-      if (room.match) send(ws, room.matchStateFor(player.id));
+      // 若对局中，自动视为重连进天梯
+      const inMatch = room.match && room.match.players.some((p) => p.id === player.id);
+      if (inMatch) {
+        room.join(player);
+      } else {
+        send(ws, room.ladderState(player.id));
+        if (room.match) send(ws, room.matchStateFor(player.id));
+      }
       return;
     }
 

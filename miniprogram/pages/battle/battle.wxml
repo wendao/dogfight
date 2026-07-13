@@ -9,7 +9,7 @@
 
   <view class="boards">
     <view class="col">
-      <view class="who {{!myTurn ? 'active' : ''}}">我的阵地</view>
+      <view class="who {{!myTurn && !reviewing ? 'active' : ''}}">我的阵地</view>
       <board cells="{{mineCells}}" lastShot="{{lastMine}}" popIdx="{{popMine}}" locked="{{true}}" />
     </view>
     <view class="col">
@@ -18,6 +18,8 @@
         cells="{{enemyCells}}"
         lastShot="{{lastEnemy}}"
         popIdx="{{popEnemy}}"
+        selIdx="{{selIdx}}"
+        turnGlow="{{myTurn}}"
         locked="{{!myTurn}}"
         bind:celltap="onFire"
       />
@@ -31,16 +33,17 @@
     <text><text class="lg hith"></text>机头</text>
   </view>
 
-  <view class="hud" style="margin-top: 20rpx">
+  <view class="hud" style="margin-top: 20rpx" wx:if="{{!reviewing}}">
     <button class="btn ghost sm" bindtap="quit">认输退出</button>
   </view>
 
-  <view class="overlay" wx:if="{{showOver}}">
-    <view class="card center ov">
-      <view class="otitle {{win ? 'win' : 'lose'}}">{{win ? '胜利！' : '落败'}}</view>
-      <view>{{reason}}</view>
-      <view class="note" style="margin-top: 12rpx">{{overTip}}</view>
-      <view class="note" style="margin-top: 8rpx">即将返回大厅…</view>
+  <view class="reviewbar" wx:if="{{showOver}}">
+    <view class="otitle {{win ? 'win' : 'lose'}}">{{win ? '胜利！' : '落败'}}</view>
+    <view>{{reason}}</view>
+    <view class="note" style="margin-top: 12rpx">{{overTip}}</view>
+    <view class="hud" style="margin-top: 20rpx">
+      <button class="btn" bindtap="goLobby">{{win ? '返回大厅守擂' : '回到队尾'}}</button>
+      <button class="btn ghost" bindtap="leaveLadder">离开天梯</button>
     </view>
   </view>
 </view>

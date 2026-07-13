@@ -71,21 +71,18 @@
   background: #d23b34;
 }
 
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(60, 52, 32, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-  padding: 32rpx;
+.reviewbar {
+  margin: 28rpx 28rpx 40rpx;
+  background: #fffdf6;
+  border: 2rpx solid #22395c;
+  border-radius: 16rpx;
+  padding: 28rpx;
+  text-align: center;
+  box-shadow: 0 8rpx 28rpx rgba(34, 57, 92, 0.12);
 }
 
-.ov { max-width: 600rpx; width: 100%; }
-
 .otitle {
-  font-size: 48rpx;
+  font-size: 44rpx;
   letter-spacing: 6rpx;
   margin-bottom: 12rpx;
   font-weight: 600;

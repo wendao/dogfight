@@ -1,8 +1,8 @@
-<view class="board {{locked ? 'locked' : ''}}">
+<view class="board {{locked ? 'locked' : ''}} {{turnGlow ? 'turn-glow' : ''}}">
   <view
     wx:for="{{cells}}"
     wx:key="index"
-    class="cell {{item}} {{index === lastShot ? 'last' : ''}} {{index === popIdx ? 'pop' : ''}}"
+    class="cell {{item}} {{index === lastShot ? 'last' : ''}} {{index === popIdx ? 'pop' : ''}} {{index === selIdx ? 'sel' : ''}}"
     data-i="{{index}}"
     bindtap="onTap"
   ></view>
